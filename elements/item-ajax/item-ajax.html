@@ -1,0 +1,273 @@
+<!--
+@license
+Copyright (c) 2015 Pete Carapetyan and The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+-->
+<link rel="import" href="../../bower_components/polymer/polymer.html">
+<link rel="import" href="../../bower_components/iron-ajax/iron-ajax.html">
+<link rel="import" href="../slash-handler/slash-handler.html">
+
+<dom-module id="item-ajax">
+  <template>
+    <style>
+      :host {
+        display: block;
+      }
+    </style>
+    <iron-ajax
+      id="ajax"
+      auto="false"
+      handle-as="json"
+      content-type="application/json"
+      on-response="_handleResponse"
+      on-error="_handleError"
+      debounce-duration="300"></iron-ajax>
+    <h2 id="title"></h2>
+    <hr>
+    <div id="main"></div>
+    <hr>
+    <div id="foot"></div>
+    <hr>
+    <paper-textarea id="tarea" label="JSON from REST API, furnished to corroborate above:"
+                    value="No JSON YET"></paper-textarea>
+  </template>
+  <script>
+    (function () {
+      'use strict';
+
+      Polymer({
+        is: 'item-ajax',
+
+        behaviors: [SlashHandler.PassUrl],
+
+        properties: {
+          deslashedurl: {
+            type: String,
+            notify: true,
+            observer: 'entryPoint'
+          },
+          ajaxMethod: {
+            type: String,
+            notify: true,
+            observer: 'changePost'
+          },
+          ajaxBody: {
+            type: String,
+            notify: true,
+            observer: 'changeBody'
+          },
+          jsonObject: {
+            type: Object,
+            notify: true
+          },
+          viewType: {
+            type: String,
+            notify: true
+          },
+          bodyDiv: {
+            type: Function,
+            value: function () {
+              return this.$.main;
+            }
+          },
+          manual: {
+            type: Function,
+            value: function () {
+              this.$.ajax.auto = false;
+            }
+          },
+          auto: {
+            type: Function,
+            value: function () {
+              this.$.ajax.auto = true;
+            }
+          },
+          titleDiv: {
+            type: Function,
+            value: function () {
+              return this.$.title;
+            }
+          },
+          footerDiv: {
+            type: Function,
+            value: function () {
+              return this.$.foot;
+            }
+          }
+        },
+        generateAjaxRequest: function () {
+          console.log("REQUEST:\n" + this.$.ajax.url + " " + this.$.ajax.method + "\n" + this.$.ajax.body);
+          if (this.$.ajax.url) {
+            this.$.ajax.generateRequest();
+          }
+        },
+        _handleResponse: function (data) {
+          this.jsonObj = null;
+          this.viewType = null;
+          if (this.deslashedurl) {
+            if (data.detail.response) {
+              this.jsonObj = data.detail.response;
+              this.viewType = this._computeViewType;
+              var jsonTextArea = this.$.tarea;
+              jsonTextArea.value = JSON.stringify(this.jsonObj, null, '\t');
+              this.fire('response');
+            }
+          }
+        }
+        ,
+        _handleError: function (event) {
+          if(event){
+            var errString = JSON.stringify(event);
+            console.log("ERROR\n" + errString);
+          }
+          if ("isTrusted" in event) {
+            if (event.isTrusted) {
+              alert ("The " + event.type + " event is trusted. See code.");
+            } else {
+              alert ("The " + event.type + " event is not trusted. Can't get much information from this error, but something did not work in the request.");
+            }
+          } else {
+            alert ("The isTrusted property is not supported by your browser");
+          }
+        },
+        entryPoint: function () {
+          this.$.ajax.url = SlashHandler.PassUrl.decodeUrl(this.deslashedurl);
+        },
+        changePost: function () {
+          this.$.ajax.auto = false;
+          this.$.ajax.method = this.ajaxMethod;
+        },
+        changeBody: function () {
+          this.$.ajax.auto = false;
+          this.$.ajax.body = this.ajaxBody;
+        },
+        _computeViewType: function () {
+          this.viewType = "other";
+          var keys = this._keys(this.jsonObject);
+          var hasLinks = this._contains("_links", keys);
+          var hasSearch = this._hasLinksSearch();
+          var hasEmbedded = this._contains("_embedded", keys);
+          var hasPage = this._contains("page", keys);
+          var hasNext = this._hasLinksNext();
+          var hasPrev = this._hasLinksPrev();
+          var hasLinksProfile = this._hasLinksProfile();
+          if (hasLinks && hasLinksProfile && keys.length == 1) {
+            this.viewType = "rootView"
+          }
+          if (hasLinks && hasSearch && hasEmbedded && hasPage && hasNext && hasPrev) {
+            return "middleItems";
+          }
+          if (hasLinks && hasSearch && hasEmbedded && hasPage && hasNext) {
+            this.viewType = "beginItems";
+          }
+          if (hasLinks && hasSearch && hasEmbedded && hasPage && hasPrev) {
+            this.viewType = "endItems";
+          }
+          if (hasLinks && !hasSearch && !hasEmbedded && !hasPage && !hasLinksProfile && keys.length > 1) {
+            this.viewType = "itemView";
+          }
+          if (hasLinks && keys.length == 1) {
+            this.viewType = "searchView";
+          }
+        }
+        ,
+
+        _keys: function (obj) {
+          var keys = [];
+          if (obj === undefined || obj == null) {
+            return null;
+          }
+          for (var key in obj) {
+            var attrName = key;
+            keys.push(key);
+          }
+          return keys;
+        }
+        ,
+
+        _hasLinksProfile: function () {
+          if (this.jsonObject === undefined || this.jsonObject == null) {
+            return false;
+          }
+          if (this.jsonObject._links != null
+            && this.jsonObject._links.profile != undefined
+            && this.jsonObject._links.profile.href != undefined) {
+            return true;
+          }
+          return false;
+        }
+        ,
+
+        _hasLinksSelf: function () {
+          if (this.jsonObject === undefined || this.jsonObject == null) {
+            return false;
+          }
+          if (this.jsonObject._links != null
+            && this.jsonObject._links.self != undefined
+            && this.jsonObject._links.self.href != undefined) {
+            return true;
+          }
+          return false;
+        }
+        ,
+
+        _hasLinksNext: function () {
+          if (this.jsonObject === undefined || this.jsonObject == null) {
+            return false;
+          }
+          if (this.jsonObject._links != null
+            && this.jsonObject._links.next != undefined
+            && this.jsonObject._links.next.href != undefined) {
+            return true;
+          }
+          return false;
+        }
+        ,
+
+        _hasLinksPrev: function () {
+          if (this.jsonObject === undefined || this.jsonObject == null) {
+            return false;
+          }
+          if (this.jsonObject._links != null
+            && this.jsonObject._links.prev != undefined
+            && this.jsonObject._links.prev.href != undefined) {
+            return true;
+          }
+          return false;
+        }
+        ,
+
+        _hasLinksSearch: function () {
+          if (this.jsonObject === undefined || this.jsonObject == null) {
+            return false;
+          }
+          if (this.jsonObject._links != null
+            && this.jsonObject._links.search != undefined
+            && this.jsonObject._links.search.href != undefined) {
+            return true;
+          }
+          return false;
+        }
+        ,
+
+        _contains: function (obj, arr) {
+          if (obj === undefined || obj === null || arr === undefined || arr == null) {
+            return false;
+          }
+          var i = arr.length;
+          while (i--) {
+            if (arr[i] === obj) {
+              return true;
+            }
+          }
+          return false;
+        }
+
+      });
+    })();
+  </script>
+</dom-module>

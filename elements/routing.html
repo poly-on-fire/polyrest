@@ -1,0 +1,96 @@
+<!--
+@license
+Copyright (c) 2015 Pete Carapetyan. All rights reserved.
+This code may only be used under the BSD style license found at https://github.com/datafundamentals/polyrest/blob/master/LICENSE.txt
+-->
+
+<script src="../bower_components/page/page.js"></script>
+<script>
+  window.addEventListener('WebComponentsReady', function() {
+
+    // We use Page.js for routing. This is a Micro
+    // client-side router inspired by the Express router
+    // More info: https://visionmedia.github.io/page.js/
+
+    // Removes end / from app.baseUrl which page.base requires for production
+    if (window.location.port === '') {  // if production
+      page.base(app.baseUrl.replace(/\/$/, ''));
+    }
+
+    // Middleware
+    function scrollToTop(ctx, next) {
+      app.scrollPageToTop();
+      next();
+    }
+
+    function closeDrawer(ctx, next) {
+      app.closeDrawer();
+      next();
+    }
+
+    // Routes
+    page('*', scrollToTop, closeDrawer, function(ctx, next) {
+      next();
+    });
+
+    page('/', function() {
+      app.route = 'home-section';
+    });
+
+    page(app.baseUrl, function() {
+      app.route = 'home-section';
+    });
+
+
+    page('/home/', function () {
+      app.route = 'home-section';
+    });
+
+    page('/todo/', function () {
+      app.route = 'todo-section';
+    });
+
+    page('/itemlist/:listurl', scrollToTop, function (data) {
+      app.route = 'itemlist-section';
+      app.params = data.params;
+    });
+
+    page('/itemsearch/:searchurl', scrollToTop, function (data) {
+      app.route = 'itemsearch-section';
+      app.params = data.params;
+    });
+
+    page('/itemselect/:selecturl', scrollToTop, function (data) {
+      app.route = 'itemselect-section';
+      app.params = data.params;
+    });
+
+    page('/itemcreate/:tableurl/:schemaspec', scrollToTop, function (data) {
+      app.route = 'itemcreate-section';
+      app.params = data.params;
+    });
+
+    page('/itemupsert/:tableurl/:schemaspec/:recordid', scrollToTop, function (data) {
+      app.route = 'itemupsert-section';
+      app.params = data.params;
+    });
+
+    page('/itemview/:viewurl', scrollToTop, function (data) {
+      app.route = 'itemview-section';
+      app.params = data.params;
+    });
+
+    // 404
+    page('*', function() {
+      app.$.toast.text = 'Can\'t find: ' + window.location.href  + '. Redirected you to Home Page';
+      app.$.toast.show();
+      page.redirect(app.baseUrl);
+    });
+
+    // add #! before urls
+    page({
+      hashbang: true
+    });
+
+  });
+</script>
